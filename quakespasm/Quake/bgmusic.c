@@ -31,6 +31,8 @@
 qboolean	bgmloop;
 cvar_t		bgm_extmusic = {"bgm_extmusic", "1", CVAR_ARCHIVE};
 
+static byte curtrack = -2;
+
 static qboolean	no_extmusic= false;
 static float	old_volume = -1.0f;
 
@@ -288,14 +290,30 @@ void BGM_PlayCDtrack (byte track, qboolean looping)
 	char tmp[MAX_QPATH];
 	const char *ext;
 	unsigned int path_id, prev_id, type;
-	music_handler_t *handler;
+    music_handler_t *handler;
 
+    Con_Printf("BGM_PlayCDtrack begin\n");
+
+    if ( track == curtrack )
+    {
+        Con_Printf("track %d == curtrack %d !!!!1!!1!!!!\n", track, curtrack);
+        return;
+    }
+
+    Con_Printf("BGM_PlayCDtrack BGM_Stop()\n");
 	BGM_Stop();
 	if (CDAudio_Play(track, looping) == 0)
+    {
+        Con_Printf("BGM_PlayCDtrack CDAudio_Play success()\n");
+        curtrack = track;
 		return;			/* success */
+    }
 
-	if (music_handlers == NULL)
+    if (music_handlers == NULL)
+    {
+        Con_Printf("BGM_PlayCDtrack music_handlers == NULL\n");
 		return;
+    }
 
 	if (no_extmusic || !bgm_extmusic.value)
 		return;
@@ -332,6 +350,11 @@ void BGM_PlayCDtrack (byte track, qboolean looping)
 		bgmstream = S_CodecOpenStreamType(tmp, type);
 		if (! bgmstream)
 			Con_Printf("Couldn't handle music file %s\n", tmp);
+        else
+        {
+            Con_Printf("BGM_PlayCDtrack bgmstream success\n");
+            curtrack = track;
+        }
 	}
 }
 
