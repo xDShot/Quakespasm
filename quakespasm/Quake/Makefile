@@ -10,6 +10,9 @@ DO_USERDIRS=0
 ### Enable/Disable SDL2
 USE_SDL2=1
 
+### Enable/Disable Sixense
+USE_SIXENSE=1
+
 ### Enable the use of zlib, for compressed pk3s.
 USE_ZLIB=1
 
@@ -104,6 +107,10 @@ ifeq ($(USE_SDL2),1)
 CFLAGS += -DUSE_SDL2
 endif
 
+ifeq ($(USE_SIXENSE),1)
+CFLAGS += -DUSE_SIXENSE
+endif
+
 ifeq ($(USE_SDL2),1)
 SDL_CONFIG ?= sdl2-config
 else
@@ -187,6 +194,11 @@ COMMON_LIBS:= -ldl -lm -lGL
 ifeq ($(USE_ZLIB),1)
 CFLAGS+= -DUSE_ZLIB
 COMMON_LIBS+= -lz
+endif
+
+ifeq ($(USE_SIXENSE),1)
+# XDTODO: determine correct lib for target bitness. For 32bit it's "sixense", 64bit - "sixense_x64"
+COMMON_LIBS+= -lsixense_x64
 endif
 
 LIBS := $(COMMON_LIBS) $(NET_LIBS) $(CODECLIBS)

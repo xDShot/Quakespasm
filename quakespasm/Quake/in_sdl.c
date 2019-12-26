@@ -49,6 +49,10 @@ static cvar_t in_debugkeys = {"in_debugkeys", "0", CVAR_NONE};
 #include <IOKit/hidsystem/event_status_driver.h>
 #endif
 
+#ifdef USE_SIXENSE
+#include <sixense.h>
+#endif
+
 // SDL2 Game Controller cvars
 cvar_t	joy_deadzone = { "joy_deadzone", "0.175", CVAR_ARCHIVE };
 cvar_t	joy_deadzone_trigger = { "joy_deadzone_trigger", "0.2", CVAR_ARCHIVE };
@@ -421,6 +425,54 @@ void IN_ShutdownJoystick (void)
 #endif
 }
 
+#if defined(USE_SIXENSE)
+static int sixenseConnectedBase = -1;
+static sixenseAllControllerData allcontrollerdata;
+
+void IN_StartupSixense (void)
+{
+	if (COM_CheckParm("-nosixense"))
+		return;
+
+	if ( sixenseInit() == -1 )
+	{
+		Con_Warning("could not initialize Sixense library\n");
+		return;
+	}
+
+	int MaxBases = sixenseGetMaxBases();
+	Con_Printf("Maximum bases supported is %d\n", MaxBases);
+
+	//Need to sleep a bit to determine
+	Sys_Sleep(500);
+
+	for (int i = 0; i < MaxBases; i++)
+	{
+		if ( sixenseIsBaseConnected(i) )
+		{
+			sixenseConnectedBase = i;
+			sixenseSetActiveBase(i);
+			Con_Printf("Base %d is used\n", sixenseConnectedBase);
+		}
+	}
+
+	if (sixenseConnectedBase == -1)
+	{
+		Con_Warning("could not determine active base.\n");
+		sixenseConnectedBase = 0;
+		if ( sixenseSetActiveBase(0) )
+		{
+			Con_Printf("Setting to active base 0\n");
+		}
+	}
+}
+
+void IN_ShutdownSixense (void)
+{
+	sixenseExit();
+}
+#endif
+
 void IN_Init (void)
 {
 	textmode = Key_TextEntry();
@@ -458,12 +510,18 @@ void IN_Init (void)
 
 	IN_UpdateGrabs();
 	IN_StartupJoystick();
+#if defined (USE_SIXENSE)
+	IN_StartupSixense();
+#endif
 }
 
 void IN_Shutdown (void)
 {
 	IN_UpdateGrabs();
 	IN_ShutdownJoystick();
+#if defined(USE_SIXENSE)
+	IN_ShutdownSixense();
+#endif
 }
 
 extern cvar_t cl_maxpitch; /* johnfitz -- variable pitch clamping */
@@ -530,6 +588,62 @@ static double joy_emulatedkeytimer[10];
 #ifdef __WATCOMC__ /* OW1.9 doesn't have powf() / sqrtf() */
 #define powf pow
 #define sqrtf sqrt
+#endif
+
+#if defined(USE_SIXENSE)
+typedef enum
+{
+	SIXENSE_BUTTON_INVALID = -1,
+	SIXENSE_BUTTON_L1,
+	SIXENSE_BUTTON_L2,
+	SIXENSE_BUTTON_L3,
+	SIXENSE_BUTTON_L4,
+	SIXENSE_BUTTON_LS,
+	SIXENSE_BUTTON_LB,
+	SIXENSE_BUTTON_LSTART,
+	SIXENSE_BUTTON_R1,
+	SIXENSE_BUTTON_R2,
+	SIXENSE_BUTTON_R3,
+	SIXENSE_BUTTON_R4,
+	SIXENSE_BUTTON_RS,
+	SIXENSE_BUTTON_RB,
+	SIXENSE_BUTTON_RSTART,
+	SIXENSE_BUTTON_MAX
+} sixense_button;
+
+typedef enum
+{
+	SIXENSE_AXIS_INVALID = -1,
+	SIXENSE_AXIS_LX,
+	SIXENSE_AXIS_LY,
+	SIXENSE_AXIS_RX,
+	SIXENSE_AXIS_RY,
+	SIXENSE_AXIS_LT,
+	SIXENSE_AXIS_RT,
+	SIXENSE_AXIS_MAX
+} sixense_axis;
+
+typedef struct sixenseaxis_s
+{
+	float x;
+	float y;
+} sixenseaxis_t;
+
+typedef struct sixense_buttonstate_s
+{
+	qboolean buttondown[SIXENSE_BUTTON_MAX];
+} sixensebuttonstate_t;
+
+typedef struct sixenseaxisstate_s
+{
+	float axisvalue[SIXENSE_AXIS_MAX]; // normalized to +-1
+} sixenseaxisstate_t;
+
+static sixensebuttonstate_t sixense_buttonstate;
+static sixenseaxisstate_t sixense_axisstate;
+
+static double sixense_buttontimer[SIXENSE_BUTTON_MAX];
+static double sixense_emulatedkeytimer[10];
 #endif
 
 /*
@@ -648,6 +762,31 @@ static int IN_KeyForControllerButton(SDL_GameControllerButton button)
 	}
 }
 
+#ifdef USE_SIXENSE
+static int IN_KeyForSixenseButton(sixense_button button)
+{
+	//This is absolute evil. It converts Hydra buttons to Xbox buttons...
+	switch (button)
+	{
+		case SIXENSE_BUTTON_R1: return K_ABUTTON;
+		case SIXENSE_BUTTON_R2: return K_BBUTTON;
+		case SIXENSE_BUTTON_R3: return K_XBUTTON;
+		case SIXENSE_BUTTON_R4: return K_YBUTTON;
+		case SIXENSE_BUTTON_LSTART: return K_TAB;
+		case SIXENSE_BUTTON_RSTART: return K_ESCAPE;
+		case SIXENSE_BUTTON_LS: return K_LTHUMB;
+		case SIXENSE_BUTTON_RS: return K_RTHUMB;
+		case SIXENSE_BUTTON_LB: return K_LSHOULDER;
+		case SIXENSE_BUTTON_RB: return K_RSHOULDER;
+		case SIXENSE_BUTTON_L1: return K_JOY1;
+		case SIXENSE_BUTTON_L2: return K_JOY2;
+		case SIXENSE_BUTTON_L3: return K_JOY3;
+		case SIXENSE_BUTTON_L4: return K_JOY4;
+		default: return 0;
+	}
+}
+#endif
+
 /*
 ================
 IN_JoyKeyEvent
@@ -699,11 +838,11 @@ Emit key events for game controller buttons, including emulated buttons for anal
 */
 void IN_Commands (void)
 {
-#if defined(USE_SDL2)
-	joyaxisstate_t newaxisstate;
 	int i;
 	const float stickthreshold = 0.9;
 	const float triggerthreshold = joy_deadzone_trigger.value;
+#if defined(USE_SDL2)
+	joyaxisstate_t newaxisstate;
 	
 	if (!joy_enable.value)
 		return;
@@ -746,6 +885,84 @@ void IN_Commands (void)
 	IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerthreshold, K_RTRIGGER, &joy_emulatedkeytimer[9]);
 	
 	joy_axisstate = newaxisstate;
+#endif
+
+#if defined(USE_SIXENSE)
+	sixenseaxisstate_t new_sixense_axisstate;
+	sixensebuttonstate_t new_sixense_buttonstate;
+	unsigned int buttons;
+
+	/*if (!sixense_enable.value) return;*/
+	
+	sixenseGetAllNewestData( &allcontrollerdata );
+
+	for ( i = 0; i < SIXENSE_MAX_CONTROLLERS ; i++ )
+	{
+		sixenseControllerData controller = allcontrollerdata.controllers[ i ];
+			//Con_Printf("Enabled: %d\n", controller.enabled);
+	    
+			if (controller.enabled)
+			{
+				/*Con_Printf("Position X Y Z: %.0f %.0f %.0f\n", controller.pos[0], controller.pos[1], controller.pos[2]);
+				Con_Printf("Docked: %d\n", controller.is_docked);
+				Con_Printf("Which hand: %d\n", controller.which_hand);*/
+				buttons = controller.buttons;
+				if ( controller.which_hand == 1 ) {
+					new_sixense_buttonstate.buttondown[SIXENSE_BUTTON_L1] = ( buttons & SIXENSE_BUTTON_1 ) ? true : false;
+					new_sixense_buttonstate.buttondown[SIXENSE_BUTTON_L2] = ( buttons & SIXENSE_BUTTON_2 ) ? true : false;
+					new_sixense_buttonstate.buttondown[SIXENSE_BUTTON_L3] = ( buttons & SIXENSE_BUTTON_3 ) ? true : false;
+					new_sixense_buttonstate.buttondown[SIXENSE_BUTTON_L4] = ( buttons & SIXENSE_BUTTON_4 ) ? true : false;
+					new_sixense_buttonstate.buttondown[SIXENSE_BUTTON_LS] = ( buttons & SIXENSE_BUTTON_JOYSTICK ) ? true : false;
+					new_sixense_buttonstate.buttondown[SIXENSE_BUTTON_LB] = ( buttons & SIXENSE_BUTTON_BUMPER ) ? true : false;
+					new_sixense_buttonstate.buttondown[SIXENSE_BUTTON_LSTART] = ( buttons & SIXENSE_BUTTON_START ) ? true : false;
+					new_sixense_axisstate.axisvalue[SIXENSE_AXIS_LX] = controller.joystick_x;
+					new_sixense_axisstate.axisvalue[SIXENSE_AXIS_LY] = -controller.joystick_y;
+					new_sixense_axisstate.axisvalue[SIXENSE_AXIS_LT] = controller.trigger;
+				}
+				else if ( controller.which_hand == 2 ) {
+					new_sixense_buttonstate.buttondown[SIXENSE_BUTTON_R1] = ( buttons & SIXENSE_BUTTON_1 ) ? true : false;
+					new_sixense_buttonstate.buttondown[SIXENSE_BUTTON_R2] = ( buttons & SIXENSE_BUTTON_2 ) ? true : false;
+					new_sixense_buttonstate.buttondown[SIXENSE_BUTTON_R3] = ( buttons & SIXENSE_BUTTON_3 ) ? true : false;
+					new_sixense_buttonstate.buttondown[SIXENSE_BUTTON_R4] = ( buttons & SIXENSE_BUTTON_4 ) ? true : false;
+					new_sixense_buttonstate.buttondown[SIXENSE_BUTTON_RS] = ( buttons & SIXENSE_BUTTON_JOYSTICK ) ? true : false;
+					new_sixense_buttonstate.buttondown[SIXENSE_BUTTON_RB] = ( buttons & SIXENSE_BUTTON_BUMPER ) ? true : false;
+					new_sixense_buttonstate.buttondown[SIXENSE_BUTTON_RSTART] = ( buttons & SIXENSE_BUTTON_START ) ? true : false;
+					new_sixense_axisstate.axisvalue[SIXENSE_AXIS_RX] = controller.joystick_x;
+					new_sixense_axisstate.axisvalue[SIXENSE_AXIS_RY] = -controller.joystick_y;
+					new_sixense_axisstate.axisvalue[SIXENSE_AXIS_RT] = controller.trigger;
+				};
+			}
+	}
+
+	for ( i = 0; i < SIXENSE_BUTTON_MAX; i++ )
+	{
+		qboolean newstate = new_sixense_buttonstate.buttondown[i];
+		qboolean oldstate = sixense_buttonstate.buttondown[i];
+		
+		sixense_buttonstate.buttondown[i] = newstate;
+		
+		IN_JoyKeyEvent(oldstate, newstate, IN_KeyForSixenseButton( (sixense_button)i ), &sixense_buttontimer[i]);
+	}
+	
+	// emit emulated arrow keys so the analog sticks can be used in the menu
+	if (key_dest != key_game)
+	{
+		IN_JoyKeyEvent(sixense_axisstate.axisvalue[SIXENSE_AXIS_LX] < -stickthreshold, new_sixense_axisstate.axisvalue[SIXENSE_AXIS_LX] < -stickthreshold, K_LEFTARROW, &sixense_emulatedkeytimer[0]);
+		IN_JoyKeyEvent(sixense_axisstate.axisvalue[SIXENSE_AXIS_LX] > stickthreshold,  new_sixense_axisstate.axisvalue[SIXENSE_AXIS_LX] > stickthreshold, K_RIGHTARROW, &sixense_emulatedkeytimer[1]);
+		IN_JoyKeyEvent(sixense_axisstate.axisvalue[SIXENSE_AXIS_LY] < -stickthreshold, new_sixense_axisstate.axisvalue[SIXENSE_AXIS_LY] < -stickthreshold, K_UPARROW, &sixense_emulatedkeytimer[2]);
+		IN_JoyKeyEvent(sixense_axisstate.axisvalue[SIXENSE_AXIS_LY] > stickthreshold,  new_sixense_axisstate.axisvalue[SIXENSE_AXIS_LY] > stickthreshold, K_DOWNARROW, &sixense_emulatedkeytimer[3]);
+		IN_JoyKeyEvent(sixense_axisstate.axisvalue[SIXENSE_AXIS_RX] < -stickthreshold,new_sixense_axisstate.axisvalue[SIXENSE_AXIS_RX] < -stickthreshold, K_LEFTARROW, &sixense_emulatedkeytimer[4]);
+		IN_JoyKeyEvent(sixense_axisstate.axisvalue[SIXENSE_AXIS_RX] > stickthreshold, new_sixense_axisstate.axisvalue[SIXENSE_AXIS_RX] > stickthreshold, K_RIGHTARROW, &sixense_emulatedkeytimer[5]);
+		IN_JoyKeyEvent(sixense_axisstate.axisvalue[SIXENSE_AXIS_RY] < -stickthreshold,new_sixense_axisstate.axisvalue[SIXENSE_AXIS_RY] < -stickthreshold, K_UPARROW, &sixense_emulatedkeytimer[6]);
+		IN_JoyKeyEvent(sixense_axisstate.axisvalue[SIXENSE_AXIS_RY] > stickthreshold, new_sixense_axisstate.axisvalue[SIXENSE_AXIS_RY] > stickthreshold, K_DOWNARROW, &sixense_emulatedkeytimer[7]);
+	}
+	
+	// emit emulated keys for the analog triggers
+	IN_JoyKeyEvent(sixense_axisstate.axisvalue[SIXENSE_AXIS_LT] > triggerthreshold,  new_sixense_axisstate.axisvalue[SIXENSE_AXIS_LT] > triggerthreshold, K_LTRIGGER, &sixense_emulatedkeytimer[8]);
+	IN_JoyKeyEvent(sixense_axisstate.axisvalue[SIXENSE_AXIS_RT] > triggerthreshold, new_sixense_axisstate.axisvalue[SIXENSE_AXIS_RT] > triggerthreshold, K_RTRIGGER, &sixense_emulatedkeytimer[9]);
+	
+	sixense_axisstate = new_sixense_axisstate;
+	
 #endif
 }
 
@@ -807,6 +1024,55 @@ void IN_JoyMove (usercmd_t *cmd)
 #endif
 }
 
+#if defined(USE_SIXENSE)
+void IN_SixenseMove (usercmd_t *cmd)
+{
+	float	speed;
+	joyaxis_t moveRaw, moveDeadzone, moveEased;
+	joyaxis_t lookRaw, lookDeadzone, lookEased;
+
+	/*if (!sixense_enable.value) return;*/
+	
+	moveRaw.x = sixense_axisstate.axisvalue[SIXENSE_AXIS_LX];
+	moveRaw.y = sixense_axisstate.axisvalue[SIXENSE_AXIS_LY];
+	lookRaw.x = sixense_axisstate.axisvalue[SIXENSE_AXIS_RX];
+	lookRaw.y = sixense_axisstate.axisvalue[SIXENSE_AXIS_RY];
+	
+	if (joy_swapmovelook.value)
+	{
+		joyaxis_t temp = moveRaw;
+		moveRaw = lookRaw;
+		lookRaw = temp;
+	}
+	
+	moveDeadzone = IN_ApplyDeadzone(moveRaw, joy_deadzone.value);
+	lookDeadzone = IN_ApplyDeadzone(lookRaw, joy_deadzone.value);
+
+	moveEased = IN_ApplyMoveEasing(moveDeadzone, joy_exponent_move.value);
+	lookEased = IN_ApplyEasing(lookDeadzone, joy_exponent.value);
+	
+	if ((in_speed.state & 1) ^ (cl_alwaysrun.value != 0.0))
+		speed = cl_movespeedkey.value;
+	else
+		speed = 1;
+
+	cmd->sidemove += (cl_sidespeed.value * speed * moveEased.x);
+	cmd->forwardmove -= (cl_forwardspeed.value * speed * moveEased.y);
+
+	cl.viewangles[YAW] -= lookEased.x * joy_sensitivity_yaw.value * host_frametime * cl.csqc_sensitivity;
+	cl.viewangles[PITCH] += lookEased.y * joy_sensitivity_pitch.value * (joy_invert.value ? -1.0 : 1.0) * host_frametime * cl.csqc_sensitivity;
+
+	if (lookEased.x != 0 || lookEased.y != 0)
+		V_StopPitchDrift();
+
+	/* johnfitz -- variable pitch clamping */
+	if (cl.viewangles[PITCH] > cl_maxpitch.value)
+		cl.viewangles[PITCH] = cl_maxpitch.value;
+	if (cl.viewangles[PITCH] < cl_minpitch.value)
+		cl.viewangles[PITCH] = cl_minpitch.value;
+}
+#endif
+
 void IN_MouseMove(usercmd_t *cmd)
 {
 	int		dmx, dmy;
@@ -849,6 +1115,9 @@ void IN_MouseMove(usercmd_t *cmd)
 void IN_Move(usercmd_t *cmd)
 {
 	IN_JoyMove(cmd);
+#if defined(USE_SIXENSE)
+	IN_SixenseMove(cmd);
+#endif
 	IN_MouseMove(cmd);
 }
 
@@ -952,7 +1221,7 @@ static inline int IN_SDL_KeysymToQuakeKey(SDLKey sym)
 	case SDLK_BREAK: return K_PAUSE;
 	case SDLK_PAUSE: return K_PAUSE;
 
-	case SDLK_WORLD_18: return '~'; // the '²' key
+	case SDLK_WORLD_18: return '~'; // the 'ï¿½' key
 
 	default: return 0;
 	}
