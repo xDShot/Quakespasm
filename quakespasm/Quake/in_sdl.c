@@ -426,6 +426,7 @@ void IN_ShutdownJoystick (void)
 }
 
 #if defined(USE_SIXENSE)
+static qboolean sixenseIsInit = false;
 static int sixenseConnectedBase = -1;
 static sixenseAllControllerData allcontrollerdata;
 
@@ -464,7 +465,12 @@ void IN_StartupSixense (void)
 		{
 			Con_Printf("Setting to active base 0\n");
 		}
+		else return;
 	}
+
+	sixenseGetAllData(0, &allcontrollerdata);
+
+	sixenseIsInit = true;
 }
 
 void IN_ShutdownSixense (void)
@@ -890,9 +896,11 @@ void IN_Commands (void)
 #if defined(USE_SIXENSE)
 	sixenseaxisstate_t new_sixense_axisstate;
 	sixensebuttonstate_t new_sixense_buttonstate;
-	unsigned int buttons;
+	unsigned int buttons = 0;
 
 	/*if (!sixense_enable.value) return;*/
+
+	if (!sixenseIsInit) return;
 	
 	sixenseGetAllNewestData( &allcontrollerdata );
 
@@ -901,7 +909,7 @@ void IN_Commands (void)
 		sixenseControllerData controller = allcontrollerdata.controllers[ i ];
 			//Con_Printf("Enabled: %d\n", controller.enabled);
 	    
-			if (controller.enabled)
+			if ( controller.enabled && !controller.is_docked )
 			{
 				/*Con_Printf("Position X Y Z: %.0f %.0f %.0f\n", controller.pos[0], controller.pos[1], controller.pos[2]);
 				Con_Printf("Docked: %d\n", controller.is_docked);
