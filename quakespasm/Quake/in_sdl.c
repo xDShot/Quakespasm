@@ -454,6 +454,7 @@ void IN_StartupSixense (void)
 			sixenseConnectedBase = i;
 			sixenseSetActiveBase(i);
 			Con_Printf("Base %d is used\n", sixenseConnectedBase);
+			break;
 		}
 	}
 
