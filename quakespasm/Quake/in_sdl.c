@@ -465,7 +465,10 @@ void IN_StartupSixense (void)
 		{
 			Con_Printf("Setting to active base 0\n");
 		}
-		else return;
+		else {
+			sixenseExit();
+			return;
+		}
 	}
 
 	sixenseGetAllData(0, &allcontrollerdata);
@@ -475,7 +478,7 @@ void IN_StartupSixense (void)
 
 void IN_ShutdownSixense (void)
 {
-	sixenseExit();
+	if ( sixenseIsInit ) sixenseExit();
 }
 #endif
 
