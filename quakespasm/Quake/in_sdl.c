@@ -839,65 +839,12 @@ static void IN_JoyKeyEvent(qboolean wasdown, qboolean isdown, int key, double *t
 }
 #endif
 
-/*
-================
-IN_Commands
-
-Emit key events for game controller buttons, including emulated buttons for analog sticks/triggers
-================
-*/
-void IN_Commands (void)
+#if defined(USE_SIXENSE)
+void IN_SixenseCommands (void)
 {
 	int i;
 	const float stickthreshold = 0.9;
 	const float triggerthreshold = joy_deadzone_trigger.value;
-#if defined(USE_SDL2)
-	joyaxisstate_t newaxisstate;
-	
-	if (!joy_enable.value)
-		return;
-	
-	if (!joy_active_controller)
-		return;
-
-	// emit key events for controller buttons
-	for (i = 0; i < SDL_CONTROLLER_BUTTON_MAX; i++)
-	{
-		qboolean newstate = SDL_GameControllerGetButton(joy_active_controller, (SDL_GameControllerButton)i);
-		qboolean oldstate = joy_buttonstate.buttondown[i];
-		
-		joy_buttonstate.buttondown[i] = newstate;
-		
-		// NOTE: This can cause a reentrant call of IN_Commands, via SCR_ModalMessage when confirming a new game.
-		IN_JoyKeyEvent(oldstate, newstate, IN_KeyForControllerButton((SDL_GameControllerButton)i), &joy_buttontimer[i]);
-	}
-	
-	for (i = 0; i < SDL_CONTROLLER_AXIS_MAX; i++)
-	{
-		newaxisstate.axisvalue[i] = SDL_GameControllerGetAxis(joy_active_controller, (SDL_GameControllerAxis)i) / 32768.0f;
-	}
-	
-	// emit emulated arrow keys so the analog sticks can be used in the menu
-	if (key_dest != key_game)
-	{
-		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] < -stickthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] < -stickthreshold, K_LEFTARROW, &joy_emulatedkeytimer[0]);
-		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] > stickthreshold,  newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] > stickthreshold, K_RIGHTARROW, &joy_emulatedkeytimer[1]);
-		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] < -stickthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] < -stickthreshold, K_UPARROW, &joy_emulatedkeytimer[2]);
-		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] > stickthreshold,  newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] > stickthreshold, K_DOWNARROW, &joy_emulatedkeytimer[3]);
-		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] < -stickthreshold,newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] < -stickthreshold, K_LEFTARROW, &joy_emulatedkeytimer[4]);
-		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] > stickthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] > stickthreshold, K_RIGHTARROW, &joy_emulatedkeytimer[5]);
-		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] < -stickthreshold,newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] < -stickthreshold, K_UPARROW, &joy_emulatedkeytimer[6]);
-		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > stickthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > stickthreshold, K_DOWNARROW, &joy_emulatedkeytimer[7]);
-	}
-	
-	// emit emulated keys for the analog triggers
-	IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerthreshold,  newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerthreshold, K_LTRIGGER, &joy_emulatedkeytimer[8]);
-	IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerthreshold, K_RTRIGGER, &joy_emulatedkeytimer[9]);
-	
-	joy_axisstate = newaxisstate;
-#endif
-
-#if defined(USE_SIXENSE)
 	sixenseaxisstate_t new_sixense_axisstate;
 	sixensebuttonstate_t new_sixense_buttonstate;
 	unsigned int buttons = 0;
@@ -905,6 +852,10 @@ void IN_Commands (void)
 	/*if (!sixense_enable.value) return;*/
 
 	if (!sixenseIsInit) return;
+
+	//Avoid garbage, initialize them with zeroes
+	for ( i = 0; i < SIXENSE_BUTTON_MAX; i++ ) new_sixense_buttonstate.buttondown[i] = false;
+	for ( i = 0; i < SIXENSE_AXIS_MAX; i++ ) new_sixense_axisstate.axisvalue[i] = 0.0f;
 	
 	sixenseGetAllNewestData( &allcontrollerdata );
 
@@ -913,11 +864,12 @@ void IN_Commands (void)
 		sixenseControllerData controller = allcontrollerdata.controllers[ i ];
 			//Con_Printf("Enabled: %d\n", controller.enabled);
 	    
-			if ( controller.enabled && !controller.is_docked )
+			if ( controller.enabled && (!controller.is_docked) )
 			{
-				/*Con_Printf("Position X Y Z: %.0f %.0f %.0f\n", controller.pos[0], controller.pos[1], controller.pos[2]);
-				Con_Printf("Docked: %d\n", controller.is_docked);
-				Con_Printf("Which hand: %d\n", controller.which_hand);*/
+				/*printf("Position X Y Z: %.0f %.0f %.0f\n", controller.pos[0], controller.pos[1], controller.pos[2]);
+				printf("Docked: %d\n", controller.is_docked);
+				printf("Which hand: %d\n", controller.which_hand);
+				printf("Buttons: %d\n", controller.buttons);*/
 				buttons = controller.buttons;
 				if ( controller.which_hand == 1 ) {
 					new_sixense_buttonstate.buttondown[SIXENSE_BUTTON_L1] = ( buttons & SIXENSE_BUTTON_1 ) ? true : false;
@@ -974,7 +926,67 @@ void IN_Commands (void)
 	IN_JoyKeyEvent(sixense_axisstate.axisvalue[SIXENSE_AXIS_RT] > triggerthreshold, new_sixense_axisstate.axisvalue[SIXENSE_AXIS_RT] > triggerthreshold, K_RTRIGGER, &sixense_emulatedkeytimer[9]);
 	
 	sixense_axisstate = new_sixense_axisstate;
+}
+#endif
+/*
+================
+IN_Commands
+
+Emit key events for game controller buttons, including emulated buttons for analog sticks/triggers
+================
+*/
+void IN_Commands (void)
+{
+#if defined(USE_SIXENSE)
+	IN_SixenseCommands();
+#endif
+#if defined(USE_SDL2)
+	int i;
+	const float stickthreshold = 0.9;
+	const float triggerthreshold = joy_deadzone_trigger.value;
+	joyaxisstate_t newaxisstate;
 	
+	if (!joy_enable.value)
+		return;
+	
+	if (!joy_active_controller)
+		return;
+
+	// emit key events for controller buttons
+	for (i = 0; i < SDL_CONTROLLER_BUTTON_MAX; i++)
+	{
+		qboolean newstate = SDL_GameControllerGetButton(joy_active_controller, (SDL_GameControllerButton)i);
+		qboolean oldstate = joy_buttonstate.buttondown[i];
+		
+		joy_buttonstate.buttondown[i] = newstate;
+		
+		// NOTE: This can cause a reentrant call of IN_Commands, via SCR_ModalMessage when confirming a new game.
+		IN_JoyKeyEvent(oldstate, newstate, IN_KeyForControllerButton((SDL_GameControllerButton)i), &joy_buttontimer[i]);
+	}
+	
+	for (i = 0; i < SDL_CONTROLLER_AXIS_MAX; i++)
+	{
+		newaxisstate.axisvalue[i] = SDL_GameControllerGetAxis(joy_active_controller, (SDL_GameControllerAxis)i) / 32768.0f;
+	}
+	
+	// emit emulated arrow keys so the analog sticks can be used in the menu
+	if (key_dest != key_game)
+	{
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] < -stickthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] < -stickthreshold, K_LEFTARROW, &joy_emulatedkeytimer[0]);
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] > stickthreshold,  newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] > stickthreshold, K_RIGHTARROW, &joy_emulatedkeytimer[1]);
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] < -stickthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] < -stickthreshold, K_UPARROW, &joy_emulatedkeytimer[2]);
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] > stickthreshold,  newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] > stickthreshold, K_DOWNARROW, &joy_emulatedkeytimer[3]);
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] < -stickthreshold,newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] < -stickthreshold, K_LEFTARROW, &joy_emulatedkeytimer[4]);
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] > stickthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] > stickthreshold, K_RIGHTARROW, &joy_emulatedkeytimer[5]);
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] < -stickthreshold,newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] < -stickthreshold, K_UPARROW, &joy_emulatedkeytimer[6]);
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > stickthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > stickthreshold, K_DOWNARROW, &joy_emulatedkeytimer[7]);
+	}
+	
+	// emit emulated keys for the analog triggers
+	IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerthreshold,  newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerthreshold, K_LTRIGGER, &joy_emulatedkeytimer[8]);
+	IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerthreshold, K_RTRIGGER, &joy_emulatedkeytimer[9]);
+	
+	joy_axisstate = newaxisstate;
 #endif
 }
 
