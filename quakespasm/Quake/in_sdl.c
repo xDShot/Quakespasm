@@ -840,6 +840,25 @@ static void IN_JoyKeyEvent(qboolean wasdown, qboolean isdown, int key, double *t
 #endif
 
 #if defined(USE_SIXENSE)
+void SixenseQuatsToEuler(float *rot_quat, vec3_t angle)
+{
+	const float q0 = -rot_quat[2]; //x
+	const float q1 = rot_quat[0]; //y
+	const float q2 = rot_quat[1]; //z
+	const float q3 = rot_quat[3]; //w
+
+	float sqw = q0*q0;
+	float sqx = q1*q1;
+	float sqy = q2*q2;
+	float sqz = q3*q3;
+
+	angle[ROLL] = -atan2(2 * (q1*q2 + q0*q3), sqw - sqx + sqy - sqz) * 180.0f / M_PI +180.0f;
+	angle[YAW] = -asin(-2 * (q2*q3 - q0*q1)) * 180.0f / M_PI;
+	angle[PITCH] = atan2(2 * (q1*q3 + q0*q2), sqw - sqx - sqy + sqz) * 180.0f / M_PI;
+}
+
+extern sixense_view_t sixense_view;
+
 void IN_SixenseCommands (void)
 {
 	int i;
@@ -894,6 +913,15 @@ void IN_SixenseCommands (void)
 					new_sixense_axisstate.axisvalue[SIXENSE_AXIS_RX] = controller.joystick_x;
 					new_sixense_axisstate.axisvalue[SIXENSE_AXIS_RY] = -controller.joystick_y;
 					new_sixense_axisstate.axisvalue[SIXENSE_AXIS_RT] = controller.trigger;
+
+					//Quake 0 1 2 = Sixense -2 0 1
+
+					sixense_view.pos[0] = -controller.pos[2] * SIXENSE_TO_QUAKE_SCALE;
+					sixense_view.pos[1] = controller.pos[0] * SIXENSE_TO_QUAKE_SCALE;
+					sixense_view.pos[2] = controller.pos[1] * SIXENSE_TO_QUAKE_SCALE;
+
+					SixenseQuatsToEuler(controller.rot_quat, sixense_view.angles);
+					AngleVectors(sixense_view.angles, sixense_view.forward, sixense_view.right, sixense_view.up);
 				};
 			}
 	}
@@ -941,10 +969,10 @@ void IN_Commands (void)
 	IN_SixenseCommands();
 #endif
 #if defined(USE_SDL2)
+	joyaxisstate_t newaxisstate;
 	int i;
 	const float stickthreshold = 0.9;
 	const float triggerthreshold = joy_deadzone_trigger.value;
-	joyaxisstate_t newaxisstate;
 	
 	if (!joy_enable.value)
 		return;
