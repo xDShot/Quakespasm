@@ -23,21 +23,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef _QUAKE_VIEW_H
 #define _QUAKE_VIEW_H
 
-#if defined(USE_SIXENSE)
-
-#define SIXENSE_TO_QUAKE_SCALE 0.0381f
-
-typedef struct sixense_view_s
-{
-	vec3_t pos;
-	vec3_t angles;
-	vec3_t forward;
-	vec3_t right;
-	vec3_t up;
-} sixense_view_t;
-
-#endif
-
 extern	cvar_t		vid_gamma;
 extern	cvar_t		vid_contrast;
 

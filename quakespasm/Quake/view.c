@@ -24,7 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 #if defined(USE_SIXENSE)
-sixense_view_t sixense_view;
+extern sixense_data_t sixense_view;
 #endif
 
 extern qboolean	premul_hud;
@@ -846,14 +846,20 @@ void V_CalcRefdef (void)
 	view->origin[2] += bob;
 
 #if defined(USE_SIXENSE)
-	VectorMA(view->origin, 35, forward, view->origin); //offset
-	VectorMA(view->origin, sixense_view.pos[0], forward, view->origin);
-	VectorMA(view->origin, sixense_view.pos[1], right, view->origin);
-	VectorMA(view->origin, sixense_view.pos[2], up, view->origin);
-	
-	view->angles[YAW] += sixense_view.angles[YAW];
-	view->angles[PITCH] += sixense_view.angles[PITCH];
-	view->angles[ROLL] = sixense_view.angles[ROLL];
+	if (sixense_view.isactive)
+	{
+		VectorMA(view->origin, 35, forward, view->origin); //offset
+		VectorMA(view->origin, sixense_view.pos[0], forward, view->origin);
+		VectorMA(view->origin, sixense_view.pos[1], right, view->origin);
+		VectorMA(view->origin, sixense_view.pos[2], up, view->origin);
+		
+		view->angles[YAW] += sixense_view.angles[YAW];
+		view->angles[PITCH] += sixense_view.angles[PITCH];
+		view->angles[ROLL] = sixense_view.angles[ROLL];
+
+		VectorCopy(view->origin, sixense_view.aimpos);
+		VectorCopy(view->angles, sixense_view.aimangles);
+	}
 #endif
 
 	//johnfitz -- removed all gun position fudging code (was used to keep gun from getting covered by sbar)

@@ -654,6 +654,8 @@ static sixenseaxisstate_t sixense_axisstate;
 
 static double sixense_buttontimer[SIXENSE_BUTTON_MAX];
 static double sixense_emulatedkeytimer[10];
+
+sixense_data_t sixense_view, sixense_move;
 #endif
 
 /*
@@ -857,8 +859,6 @@ void SixenseQuatsToEuler(float *rot_quat, vec3_t angle)
 	angle[PITCH] = atan2(2 * (q1*q3 + q0*q2), sqw - sqx - sqy + sqz) * 180.0f / M_PI;
 }
 
-extern sixense_view_t sixense_view;
-
 void IN_SixenseCommands (void)
 {
 	int i;
@@ -875,6 +875,10 @@ void IN_SixenseCommands (void)
 	//Avoid garbage, initialize them with zeroes
 	for ( i = 0; i < SIXENSE_BUTTON_MAX; i++ ) new_sixense_buttonstate.buttondown[i] = false;
 	for ( i = 0; i < SIXENSE_AXIS_MAX; i++ ) new_sixense_axisstate.axisvalue[i] = 0.0f;
+
+	//If these won't be discovered later, threat them as inactive 
+	sixense_view.isactive = false;
+	sixense_move.isactive = false;
 	
 	sixenseGetAllNewestData( &allcontrollerdata );
 
@@ -901,6 +905,8 @@ void IN_SixenseCommands (void)
 					new_sixense_axisstate.axisvalue[SIXENSE_AXIS_LX] = controller.joystick_x;
 					new_sixense_axisstate.axisvalue[SIXENSE_AXIS_LY] = -controller.joystick_y;
 					new_sixense_axisstate.axisvalue[SIXENSE_AXIS_LT] = controller.trigger;
+
+					sixense_move.isactive = true;
 				}
 				else if ( controller.which_hand == 2 ) {
 					new_sixense_buttonstate.buttondown[SIXENSE_BUTTON_R1] = ( buttons & SIXENSE_BUTTON_1 ) ? true : false;
@@ -922,6 +928,8 @@ void IN_SixenseCommands (void)
 
 					SixenseQuatsToEuler(controller.rot_quat, sixense_view.angles);
 					AngleVectors(sixense_view.angles, sixense_view.forward, sixense_view.right, sixense_view.up);
+
+					sixense_view.isactive = true;
 				};
 			}
 	}

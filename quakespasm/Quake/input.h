@@ -24,6 +24,24 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 // input.h -- external (non-keyboard) input devices
 
+#if defined(USE_SIXENSE)
+
+#define SIXENSE_TO_QUAKE_SCALE 0.0381f
+
+typedef struct sixense_data_s
+{
+	qboolean isactive; //active and not docked
+	vec3_t pos;
+	vec3_t angles;
+	vec3_t forward;
+	vec3_t right;
+	vec3_t up;
+	vec3_t aimpos;
+	vec3_t aimangles;
+} sixense_data_t;
+
+#endif
+
 void IN_Init (void);
 
 void IN_Shutdown (void);
