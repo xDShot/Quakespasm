@@ -38,6 +38,7 @@ typedef struct sixense_data_s
 	vec3_t up;
 	vec3_t aimpos;
 	vec3_t aimangles;
+	vec3_t velocity; //difference between host frames
 } sixense_data_t;
 
 #endif

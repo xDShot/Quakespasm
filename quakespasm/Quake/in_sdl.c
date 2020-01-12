@@ -69,6 +69,10 @@ static SDL_JoystickID joy_active_instaceid = -1;
 static SDL_GameController *joy_active_controller = NULL;
 #endif
 
+#if defined(USE_SIXENSE)
+sixense_data_t sixense_view, sixense_move;
+#endif
+
 static qboolean	no_mouse = false;
 
 static int buttonremap[] =
@@ -475,6 +479,12 @@ void IN_StartupSixense (void)
 	sixenseGetAllData(0, &allcontrollerdata);
 
 	sixenseIsInit = true;
+
+	for (int i = 0; i<3; i++)
+	{
+		sixense_move.velocity[i] = 0.0f;
+		sixense_view.velocity[i] = 0.0f;
+	}
 }
 
 void IN_ShutdownSixense (void)
@@ -654,8 +664,6 @@ static sixenseaxisstate_t sixense_axisstate;
 
 static double sixense_buttontimer[SIXENSE_BUTTON_MAX];
 static double sixense_emulatedkeytimer[10];
-
-sixense_data_t sixense_view, sixense_move;
 #endif
 
 /*
@@ -1139,6 +1147,32 @@ void IN_SixenseMove (usercmd_t *cmd)
 
 void IN_SixenseGestures (usercmd_t *cmd)
 {
+	//Up / Down floating when swimming or noclipping
+	const float minoffset = 0.250f; //sin(15d)
+	const float maxoffset = 0.707f; //sin(45d)
+
+	float zoffset = 0.0f;
+
+	float zvalue = sixense_move.forward[2];
+	if (zvalue < 0.0f) zvalue = -zvalue; //absolute
+
+	if (zvalue > minoffset)
+	{
+		if (zvalue > maxoffset) zoffset = 1.0f;
+		else
+		{
+			zoffset = ( zvalue - minoffset ) / ( maxoffset - minoffset );
+		}
+
+		//Why it reversed?..
+		if (sixense_move.forward[2]>0.0f) cmd->upmove -= cl_upspeed.value * zoffset;
+		else cmd->upmove += cl_upspeed.value * zoffset;
+	}
+}
+
+void IN_SixenseMouse(usercmd_t *cmd)
+{
+	//
 }
 #endif
 
@@ -1187,6 +1221,7 @@ void IN_Move(usercmd_t *cmd)
 #if defined(USE_SIXENSE)
 	IN_SixenseMove(cmd);
 	IN_SixenseGestures(cmd);
+	IN_SixenseMouse(cmd);
 #endif
 	IN_MouseMove(cmd);
 }
