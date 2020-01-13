@@ -24,7 +24,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 #if defined(USE_SIXENSE)
+extern cvar_t sixense_enable;
+
 extern sixense_data_t sixense_view;
+
+extern qboolean sixenseIsInit;
 #endif
 
 extern qboolean	premul_hud;
@@ -846,7 +850,7 @@ void V_CalcRefdef (void)
 	view->origin[2] += bob;
 
 #if defined(USE_SIXENSE)
-	if (sixense_view.isactive)
+	if (sixenseIsInit && sixense_enable.value && sixense_view.isactive)
 	{
 		VectorMA(view->origin, 35, forward, view->origin); //offset
 		VectorMA(view->origin, sixense_view.pos[0], forward, view->origin);

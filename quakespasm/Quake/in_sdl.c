@@ -71,6 +71,11 @@ static SDL_GameController *joy_active_controller = NULL;
 
 #if defined(USE_SIXENSE)
 sixense_data_t sixense_view, sixense_move;
+
+cvar_t sixense_mode = { "sixense_mode", "0", CVAR_ARCHIVE };
+cvar_t sixense_swapcontrollers = { "sixense_swapcontrollers", "0", CVAR_ARCHIVE };
+cvar_t sixense_gestures = { "sixense_gestures", "1", CVAR_ARCHIVE };
+cvar_t sixense_enable = { "sixense_enable", "1", CVAR_ARCHIVE };
 #endif
 
 static qboolean	no_mouse = false;
@@ -430,7 +435,7 @@ void IN_ShutdownJoystick (void)
 }
 
 #if defined(USE_SIXENSE)
-static qboolean sixenseIsInit = false;
+qboolean sixenseIsInit = false;
 static int sixenseConnectedBase = -1;
 static sixenseAllControllerData allcontrollerdata;
 
@@ -531,6 +536,11 @@ void IN_Init (void)
 	IN_UpdateGrabs();
 	IN_StartupJoystick();
 #if defined (USE_SIXENSE)
+	Cvar_RegisterVariable(&sixense_mode);
+	Cvar_RegisterVariable(&sixense_swapcontrollers);
+	Cvar_RegisterVariable(&sixense_gestures);
+	Cvar_RegisterVariable(&sixense_enable);
+
 	IN_StartupSixense();
 #endif
 }
@@ -889,10 +899,7 @@ void IN_SixenseCommands (void)
 	sixenseaxisstate_t new_sixense_axisstate;
 	sixensebuttonstate_t new_sixense_buttonstate;
 	unsigned int buttons = 0;
-
-	/*if (!sixense_enable.value) return;*/
-
-	if (!sixenseIsInit) return;
+	unsigned char whichhand = 0;
 
 	//Avoid garbage, initialize them with zeroes
 	for ( i = 0; i < SIXENSE_BUTTON_MAX; i++ ) new_sixense_buttonstate.buttondown[i] = false;
@@ -916,7 +923,13 @@ void IN_SixenseCommands (void)
 				printf("Which hand: %d\n", controller.which_hand);
 				printf("Buttons: %d\n", controller.buttons);*/
 				buttons = controller.buttons;
-				if ( controller.which_hand == 1 ) {
+				whichhand = controller.which_hand;
+				if (sixense_swapcontrollers.value)
+				{
+					if (whichhand == 1) whichhand = 2;
+					else if (whichhand == 2) whichhand = 1;
+				}
+				if ( whichhand == 1 ) {
 					new_sixense_buttonstate.buttondown[SIXENSE_BUTTON_L1] = ( buttons & SIXENSE_BUTTON_1 ) ? true : false;
 					new_sixense_buttonstate.buttondown[SIXENSE_BUTTON_L2] = ( buttons & SIXENSE_BUTTON_2 ) ? true : false;
 					new_sixense_buttonstate.buttondown[SIXENSE_BUTTON_L3] = ( buttons & SIXENSE_BUTTON_3 ) ? true : false;
@@ -930,7 +943,7 @@ void IN_SixenseCommands (void)
 
 					SixensePopulateData( &sixense_move, &controller );
 				}
-				else if ( controller.which_hand == 2 ) {
+				else if ( whichhand == 2 ) {
 					new_sixense_buttonstate.buttondown[SIXENSE_BUTTON_R1] = ( buttons & SIXENSE_BUTTON_1 ) ? true : false;
 					new_sixense_buttonstate.buttondown[SIXENSE_BUTTON_R2] = ( buttons & SIXENSE_BUTTON_2 ) ? true : false;
 					new_sixense_buttonstate.buttondown[SIXENSE_BUTTON_R3] = ( buttons & SIXENSE_BUTTON_3 ) ? true : false;
@@ -987,7 +1000,7 @@ Emit key events for game controller buttons, including emulated buttons for anal
 void IN_Commands (void)
 {
 #if defined(USE_SIXENSE)
-	IN_SixenseCommands();
+	if (sixenseIsInit && sixense_enable.value) IN_SixenseCommands();
 #endif
 #if defined(USE_SDL2)
 	joyaxisstate_t newaxisstate;
@@ -1103,8 +1116,6 @@ void IN_SixenseMove (usercmd_t *cmd)
 	float	speed;
 	joyaxis_t moveRaw, moveDeadzone, moveEased;
 	joyaxis_t lookRaw, lookDeadzone, lookEased;
-
-	/*if (!sixense_enable.value) return;*/
 	
 	moveRaw.x = sixense_axisstate.axisvalue[SIXENSE_AXIS_LX];
 	moveRaw.y = sixense_axisstate.axisvalue[SIXENSE_AXIS_LY];
@@ -1147,6 +1158,8 @@ void IN_SixenseMove (usercmd_t *cmd)
 
 void IN_SixenseGestures (usercmd_t *cmd)
 {
+	if (!sixense_gestures.value) return;
+	
 	//Up / Down floating when swimming or noclipping
 	const float minoffset = 0.250f; //sin(15d)
 	const float maxoffset = 0.707f; //sin(45d)
@@ -1219,9 +1232,12 @@ void IN_Move(usercmd_t *cmd)
 {
 	IN_JoyMove(cmd);
 #if defined(USE_SIXENSE)
-	IN_SixenseMove(cmd);
-	IN_SixenseGestures(cmd);
-	IN_SixenseMouse(cmd);
+	if (sixenseIsInit && sixense_enable.value)
+	{
+		IN_SixenseMove(cmd);
+		IN_SixenseGestures(cmd);
+		IN_SixenseMouse(cmd);
+	}
 #endif
 	IN_MouseMove(cmd);
 }
