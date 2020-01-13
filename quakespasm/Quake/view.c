@@ -29,6 +29,14 @@ extern cvar_t sixense_enable;
 extern sixense_data_t sixense_view;
 
 extern qboolean sixenseIsInit;
+
+cvar_t sixense_view_offset_x = {"sixense_view_offset_x", "0", CVAR_ARCHIVE};
+cvar_t sixense_view_offset_y = {"sixense_view_offset_y", "0", CVAR_ARCHIVE};
+cvar_t sixense_view_offset_z = {"sixense_view_offset_z", "0", CVAR_ARCHIVE};
+
+cvar_t sixense_view_scale_x = {"sixense_view_scale_x", "1", CVAR_ARCHIVE};
+cvar_t sixense_view_scale_y = {"sixense_view_scale_y", "1", CVAR_ARCHIVE};
+cvar_t sixense_view_scale_z = {"sixense_view_scale_z", "1", CVAR_ARCHIVE};
 #endif
 
 extern qboolean	premul_hud;
@@ -852,10 +860,13 @@ void V_CalcRefdef (void)
 #if defined(USE_SIXENSE)
 	if (sixenseIsInit && sixense_enable.value && sixense_view.isactive)
 	{
-		VectorMA(view->origin, 35, forward, view->origin); //offset
-		VectorMA(view->origin, sixense_view.pos[0], forward, view->origin);
-		VectorMA(view->origin, sixense_view.pos[1], right, view->origin);
-		VectorMA(view->origin, sixense_view.pos[2], up, view->origin);
+		VectorMA(view->origin, sixense_view_offset_x.value, forward, view->origin);
+		VectorMA(view->origin, sixense_view_offset_y.value, right, view->origin);
+		VectorMA(view->origin, sixense_view_offset_z.value, up, view->origin);
+
+		VectorMA(view->origin, sixense_view.pos[0] * sixense_view_scale_x.value, forward, view->origin);
+		VectorMA(view->origin, sixense_view.pos[1] * sixense_view_scale_y.value, right, view->origin);
+		VectorMA(view->origin, sixense_view.pos[2] * sixense_view_scale_z.value, up, view->origin);
 		
 		view->angles[YAW] += sixense_view.angles[YAW];
 		view->angles[PITCH] += sixense_view.angles[PITCH];
@@ -1010,5 +1021,15 @@ void V_Init (void)
 	Cvar_RegisterVariable (&v_gunkick); //johnfitz
 	
 	Cvar_RegisterVariable (&r_viewmodel_quake); //MarkV
+
+#if defined(USE_SIXENSE)
+	Cvar_RegisterVariable (&sixense_view_offset_x);
+	Cvar_RegisterVariable (&sixense_view_offset_y);
+	Cvar_RegisterVariable (&sixense_view_offset_z);
+
+	Cvar_RegisterVariable (&sixense_view_scale_x);
+	Cvar_RegisterVariable (&sixense_view_scale_y);
+	Cvar_RegisterVariable (&sixense_view_scale_z);
+#endif
 }
 
