@@ -911,46 +911,65 @@ void SixenseQuatsToEuler(float *rot_quat, vec3_t angle)
 	angle[PITCH] = atan2(2 * (q1*q3 + q0*q2), sqw - sqx - sqy + sqz) * 180.0f / M_PI;
 }
 
+static unsigned char lastseqnum_l = 255, lastseqnum_r = 255;
 void SixensePopulateData( sixense_data_t *sixense_data, sixenseControllerData *controller, unsigned char whichhand)
 {
 	vec3_t newpos;
+
+	const float tilt_threshold = 0.4f;
+	const float tilt_threshold_neg = -tilt_threshold;
 	//Quake 0 1 2 = Sixense -2 0 1
 
-	newpos[0] = -controller->pos[2] * SIXENSE_TO_QUAKE_SCALE;
-	newpos[1] = controller->pos[0] * SIXENSE_TO_QUAKE_SCALE;
-	newpos[2] = controller->pos[1] * SIXENSE_TO_QUAKE_SCALE;
-
-	VectorSubtract(newpos, sixense_data->pos, sixense_data->velocity);
-	printf("Hand up %d\n", whichhand);
-	printf("Velocity Z if %f\n", sixense_data->velocity[2]);
-
-	const float tilt_threshold = 0.1f;
-	const float tilt_threshold_neg = -tilt_threshold;
-
-	for (int i = 0; i<SIXENSE_TILT_MAX; i++) sixense_old_tiltstate.tilt[ (sixense_tilt)i ] = sixense_cur_tiltstate.tilt[ (sixense_tilt)i ];
-
-	if (whichhand == 1)
+	if ( ( whichhand==1 && ( controller->sequence_number!=lastseqnum_l ) ) || ( whichhand==2 && (controller->sequence_number!=lastseqnum_r) ) )
 	{
-		sixense_cur_tiltstate.tilt[SIXENSE_TILT_LX_POS] = ( sixense_data->velocity[0] > tilt_threshold );
-		sixense_cur_tiltstate.tilt[SIXENSE_TILT_LX_NEG] = ( sixense_data->velocity[0] < tilt_threshold_neg );
-		sixense_cur_tiltstate.tilt[SIXENSE_TILT_LY_POS] = ( sixense_data->velocity[1] > tilt_threshold );
-		sixense_cur_tiltstate.tilt[SIXENSE_TILT_LY_NEG] = ( sixense_data->velocity[1] < tilt_threshold_neg );
-		sixense_cur_tiltstate.tilt[SIXENSE_TILT_LZ_POS] = ( sixense_data->velocity[2] > tilt_threshold );
-		sixense_cur_tiltstate.tilt[SIXENSE_TILT_LZ_NEG] = ( sixense_data->velocity[2] < tilt_threshold_neg );
-	}
-	if (whichhand == 2)
-	{
-		sixense_cur_tiltstate.tilt[SIXENSE_TILT_RX_POS] = ( sixense_data->velocity[0] > tilt_threshold );
-		sixense_cur_tiltstate.tilt[SIXENSE_TILT_RX_NEG] = ( sixense_data->velocity[0] < tilt_threshold_neg );
-		sixense_cur_tiltstate.tilt[SIXENSE_TILT_RY_POS] = ( sixense_data->velocity[1] > tilt_threshold );
-		sixense_cur_tiltstate.tilt[SIXENSE_TILT_RY_NEG] = ( sixense_data->velocity[1] < tilt_threshold_neg );
-		sixense_cur_tiltstate.tilt[SIXENSE_TILT_RZ_POS] = ( sixense_data->velocity[2] > tilt_threshold );
-		sixense_cur_tiltstate.tilt[SIXENSE_TILT_RZ_NEG] = ( sixense_data->velocity[2] < tilt_threshold_neg );
-	}
+		newpos[0] = -controller->pos[2] * SIXENSE_TO_QUAKE_SCALE;
+		newpos[1] = controller->pos[0] * SIXENSE_TO_QUAKE_SCALE;
+		newpos[2] = controller->pos[1] * SIXENSE_TO_QUAKE_SCALE;
+		VectorSubtract(newpos, sixense_data->pos, sixense_data->velocity);
 
-	sixense_data->pos[0] = newpos[0];
-	sixense_data->pos[1] = newpos[1];
-	sixense_data->pos[2] = newpos[2];
+		//printf("Hand up %d\n", whichhand);
+		//printf("Sequence num %d\n", controller->sequence_number);
+		//printf("Velocity Z if %f\n", sixense_data->velocity[2]);
+		if (whichhand == 1) lastseqnum_l = controller->sequence_number;
+		if (whichhand == 2) lastseqnum_r = controller->sequence_number;
+
+		sixense_data->pos[0] = newpos[0];
+		sixense_data->pos[1] = newpos[1];
+		sixense_data->pos[2] = newpos[2];
+
+		if (whichhand == 1)
+		{
+			sixense_old_tiltstate.tilt[SIXENSE_TILT_LX_POS] = sixense_cur_tiltstate.tilt[SIXENSE_TILT_LX_POS];
+			sixense_old_tiltstate.tilt[SIXENSE_TILT_LX_NEG] = sixense_cur_tiltstate.tilt[SIXENSE_TILT_LX_NEG];
+			sixense_old_tiltstate.tilt[SIXENSE_TILT_LY_POS] = sixense_cur_tiltstate.tilt[SIXENSE_TILT_LY_POS];
+			sixense_old_tiltstate.tilt[SIXENSE_TILT_LY_NEG] = sixense_cur_tiltstate.tilt[SIXENSE_TILT_LY_NEG];
+			sixense_old_tiltstate.tilt[SIXENSE_TILT_LZ_POS] = sixense_cur_tiltstate.tilt[SIXENSE_TILT_LZ_POS];
+			sixense_old_tiltstate.tilt[SIXENSE_TILT_LZ_NEG] = sixense_cur_tiltstate.tilt[SIXENSE_TILT_LZ_NEG];
+
+			sixense_cur_tiltstate.tilt[SIXENSE_TILT_LX_POS] = ( sixense_data->velocity[0] > tilt_threshold );
+			sixense_cur_tiltstate.tilt[SIXENSE_TILT_LX_NEG] = ( sixense_data->velocity[0] < tilt_threshold_neg );
+			sixense_cur_tiltstate.tilt[SIXENSE_TILT_LY_POS] = ( sixense_data->velocity[1] > tilt_threshold );
+			sixense_cur_tiltstate.tilt[SIXENSE_TILT_LY_NEG] = ( sixense_data->velocity[1] < tilt_threshold_neg );
+			sixense_cur_tiltstate.tilt[SIXENSE_TILT_LZ_POS] = ( sixense_data->velocity[2] > tilt_threshold );
+			sixense_cur_tiltstate.tilt[SIXENSE_TILT_LZ_NEG] = ( sixense_data->velocity[2] < tilt_threshold_neg );
+		}
+		if (whichhand == 2)
+		{
+			sixense_old_tiltstate.tilt[SIXENSE_TILT_RX_POS] = sixense_cur_tiltstate.tilt[SIXENSE_TILT_RX_POS];
+			sixense_old_tiltstate.tilt[SIXENSE_TILT_RX_NEG] = sixense_cur_tiltstate.tilt[SIXENSE_TILT_RX_NEG];
+			sixense_old_tiltstate.tilt[SIXENSE_TILT_RY_POS] = sixense_cur_tiltstate.tilt[SIXENSE_TILT_RY_POS];
+			sixense_old_tiltstate.tilt[SIXENSE_TILT_RY_NEG] = sixense_cur_tiltstate.tilt[SIXENSE_TILT_RY_NEG];
+			sixense_old_tiltstate.tilt[SIXENSE_TILT_RZ_POS] = sixense_cur_tiltstate.tilt[SIXENSE_TILT_RZ_POS];
+			sixense_old_tiltstate.tilt[SIXENSE_TILT_RZ_NEG] = sixense_cur_tiltstate.tilt[SIXENSE_TILT_RZ_NEG];
+
+			sixense_cur_tiltstate.tilt[SIXENSE_TILT_RX_POS] = ( sixense_data->velocity[0] > tilt_threshold );
+			sixense_cur_tiltstate.tilt[SIXENSE_TILT_RX_NEG] = ( sixense_data->velocity[0] < tilt_threshold_neg );
+			sixense_cur_tiltstate.tilt[SIXENSE_TILT_RY_POS] = ( sixense_data->velocity[1] > tilt_threshold );
+			sixense_cur_tiltstate.tilt[SIXENSE_TILT_RY_NEG] = ( sixense_data->velocity[1] < tilt_threshold_neg );
+			sixense_cur_tiltstate.tilt[SIXENSE_TILT_RZ_POS] = ( sixense_data->velocity[2] > tilt_threshold );
+			sixense_cur_tiltstate.tilt[SIXENSE_TILT_RZ_NEG] = ( sixense_data->velocity[2] < tilt_threshold_neg );
+		}
+	}
 
 	SixenseQuatsToEuler(controller->rot_quat, sixense_data->angles);
 	AngleVectors(sixense_data->angles, sixense_data->forward, sixense_data->right, sixense_data->up);
