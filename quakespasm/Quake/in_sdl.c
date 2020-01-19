@@ -76,6 +76,32 @@ cvar_t sixense_mode = { "sixense_mode", "0", CVAR_ARCHIVE };
 cvar_t sixense_swapcontrollers = { "sixense_swapcontrollers", "0", CVAR_ARCHIVE };
 cvar_t sixense_gestures = { "sixense_gestures", "1", CVAR_ARCHIVE };
 cvar_t sixense_enable = { "sixense_enable", "1", CVAR_ARCHIVE };
+
+//Declare the stuff here to make StartupSixense() happy
+typedef enum
+{
+	SIXENSE_TILT_INVALID = -1,
+	SIXENSE_TILT_LX_POS,
+	SIXENSE_TILT_LX_NEG,
+	SIXENSE_TILT_LY_POS,
+	SIXENSE_TILT_LY_NEG,
+	SIXENSE_TILT_LZ_POS,
+	SIXENSE_TILT_LZ_NEG,
+	SIXENSE_TILT_RX_POS,
+	SIXENSE_TILT_RX_NEG,
+	SIXENSE_TILT_RY_POS,
+	SIXENSE_TILT_RY_NEG,
+	SIXENSE_TILT_RZ_POS,
+	SIXENSE_TILT_RZ_NEG,
+	SIXENSE_TILT_MAX
+} sixense_tilt;
+
+typedef struct sixense_tiltstate_s
+{
+	qboolean tilt[SIXENSE_TILT_MAX];
+} sixensetiltstate_t;
+
+static sixensetiltstate_t sixense_cur_tiltstate, sixense_old_tiltstate;
 #endif
 
 static qboolean	no_mouse = false;
@@ -492,6 +518,12 @@ void IN_StartupSixense (void)
 		sixense_move.pos[i] = 0.0f;
 		sixense_view.pos[i] = 0.0f;
 	}
+
+	for (int i = 0; i<SIXENSE_TILT_MAX; i++)
+	{
+		sixense_old_tiltstate.tilt[ (sixense_tilt)i ] = false;
+		sixense_cur_tiltstate.tilt[ (sixense_tilt)i ] = false;
+	}
 }
 
 void IN_ShutdownSixense (void)
@@ -655,18 +687,6 @@ typedef enum
 	SIXENSE_AXIS_MAX
 } sixense_axis;
 
-typedef enum
-{
-	SIXENSE_TILT_INVALID = -1,
-	SIXENSE_TILT_LX,
-	SIXENSE_TILT_LY,
-	SIXENSE_TILT_LZ,
-	SIXENSE_TILT_RX,
-	SIXENSE_TILT_RY,
-	SIXENSE_TILT_RZ,
-	SIXENSE_TILT_MAX
-} sixense_tilt;
-
 typedef struct sixenseaxis_s
 {
 	float x;
@@ -683,17 +703,11 @@ typedef struct sixenseaxisstate_s
 	float axisvalue[SIXENSE_AXIS_MAX]; // normalized to +-1
 } sixenseaxisstate_t;
 
-typedef struct sixense_tiltstate_s
-{
-	float velocity[SIXENSE_TILT_MAX];
-} sixensetiltstate_t;
-
 static sixensebuttonstate_t sixense_buttonstate;
 static sixenseaxisstate_t sixense_axisstate;
-static sixensetiltstate_t sixense_tiltstate;
 
 static double sixense_buttontimer[SIXENSE_BUTTON_MAX];
-static double sixense_emulatedkeytimer[16]; //8 for sticks, 2 for triggers and 6 for tilt axes
+static double sixense_emulatedkeytimer[22]; //8 for sticks, 2 for triggers and 12 for tilt axes
 #endif
 
 /*
@@ -897,7 +911,7 @@ void SixenseQuatsToEuler(float *rot_quat, vec3_t angle)
 	angle[PITCH] = atan2(2 * (q1*q3 + q0*q2), sqw - sqx - sqy + sqz) * 180.0f / M_PI;
 }
 
-void SixensePopulateData( sixense_data_t *sixense_data, sixenseControllerData *controller)
+void SixensePopulateData( sixense_data_t *sixense_data, sixenseControllerData *controller, unsigned char whichhand)
 {
 	vec3_t newpos;
 	//Quake 0 1 2 = Sixense -2 0 1
@@ -907,6 +921,32 @@ void SixensePopulateData( sixense_data_t *sixense_data, sixenseControllerData *c
 	newpos[2] = controller->pos[1] * SIXENSE_TO_QUAKE_SCALE;
 
 	VectorSubtract(newpos, sixense_data->pos, sixense_data->velocity);
+	printf("Hand up %d\n", whichhand);
+	printf("Velocity Z if %f\n", sixense_data->velocity[2]);
+
+	const float tilt_threshold = 0.1f;
+	const float tilt_threshold_neg = -tilt_threshold;
+
+	for (int i = 0; i<SIXENSE_TILT_MAX; i++) sixense_old_tiltstate.tilt[ (sixense_tilt)i ] = sixense_cur_tiltstate.tilt[ (sixense_tilt)i ];
+
+	if (whichhand == 1)
+	{
+		sixense_cur_tiltstate.tilt[SIXENSE_TILT_LX_POS] = ( sixense_data->velocity[0] > tilt_threshold );
+		sixense_cur_tiltstate.tilt[SIXENSE_TILT_LX_NEG] = ( sixense_data->velocity[0] < tilt_threshold_neg );
+		sixense_cur_tiltstate.tilt[SIXENSE_TILT_LY_POS] = ( sixense_data->velocity[1] > tilt_threshold );
+		sixense_cur_tiltstate.tilt[SIXENSE_TILT_LY_NEG] = ( sixense_data->velocity[1] < tilt_threshold_neg );
+		sixense_cur_tiltstate.tilt[SIXENSE_TILT_LZ_POS] = ( sixense_data->velocity[2] > tilt_threshold );
+		sixense_cur_tiltstate.tilt[SIXENSE_TILT_LZ_NEG] = ( sixense_data->velocity[2] < tilt_threshold_neg );
+	}
+	if (whichhand == 2)
+	{
+		sixense_cur_tiltstate.tilt[SIXENSE_TILT_RX_POS] = ( sixense_data->velocity[0] > tilt_threshold );
+		sixense_cur_tiltstate.tilt[SIXENSE_TILT_RX_NEG] = ( sixense_data->velocity[0] < tilt_threshold_neg );
+		sixense_cur_tiltstate.tilt[SIXENSE_TILT_RY_POS] = ( sixense_data->velocity[1] > tilt_threshold );
+		sixense_cur_tiltstate.tilt[SIXENSE_TILT_RY_NEG] = ( sixense_data->velocity[1] < tilt_threshold_neg );
+		sixense_cur_tiltstate.tilt[SIXENSE_TILT_RZ_POS] = ( sixense_data->velocity[2] > tilt_threshold );
+		sixense_cur_tiltstate.tilt[SIXENSE_TILT_RZ_NEG] = ( sixense_data->velocity[2] < tilt_threshold_neg );
+	}
 
 	sixense_data->pos[0] = newpos[0];
 	sixense_data->pos[1] = newpos[1];
@@ -968,7 +1008,7 @@ void IN_SixenseCommands (void)
 					new_sixense_axisstate.axisvalue[SIXENSE_AXIS_LY] = -controller.joystick_y;
 					new_sixense_axisstate.axisvalue[SIXENSE_AXIS_LT] = controller.trigger;
 
-					SixensePopulateData( &sixense_move, &controller );
+					SixensePopulateData( &sixense_move, &controller, whichhand );
 				}
 				else if ( whichhand == 2 ) {
 					new_sixense_buttonstate.buttondown[SIXENSE_BUTTON_R1] = ( buttons & SIXENSE_BUTTON_1 ) ? true : false;
@@ -982,7 +1022,7 @@ void IN_SixenseCommands (void)
 					new_sixense_axisstate.axisvalue[SIXENSE_AXIS_RY] = -controller.joystick_y;
 					new_sixense_axisstate.axisvalue[SIXENSE_AXIS_RT] = controller.trigger;
 
-					SixensePopulateData( &sixense_view, &controller );
+					SixensePopulateData( &sixense_view, &controller, whichhand );
 				};
 			}
 	}
@@ -1210,21 +1250,8 @@ void IN_SixenseGestures (usercmd_t *cmd)
 	}
 
 	//Tilt actions
-	sixensetiltstate_t newtiltstate;
-	const float tiltthreshold = 0.01f;
-
-	newtiltstate.velocity[SIXENSE_TILT_LX] = sixense_move.velocity[0];
-	newtiltstate.velocity[SIXENSE_TILT_LY] = sixense_move.velocity[1];
-	newtiltstate.velocity[SIXENSE_TILT_LZ] = sixense_move.velocity[2];
-	newtiltstate.velocity[SIXENSE_TILT_RX] = sixense_view.velocity[0];
-	newtiltstate.velocity[SIXENSE_TILT_RY] = sixense_view.velocity[1];
-	newtiltstate.velocity[SIXENSE_TILT_RZ] = sixense_view.velocity[2];
-
 	//start iterating on key timers from 10
-	IN_JoyKeyEvent(sixense_tiltstate.velocity[SIXENSE_TILT_LZ] > tiltthreshold, newtiltstate.velocity[2] > tiltthreshold, K_LTRIGGER, &sixense_emulatedkeytimer[12]); //Tilt up to jump
-
-	for (int i=0; i<SIXENSE_TILT_MAX; i++) sixense_tiltstate.velocity[ (sixense_tilt)i ] = newtiltstate.velocity[ (sixense_tilt)i ];
-	
+	IN_JoyKeyEvent(sixense_old_tiltstate.tilt[SIXENSE_TILT_LZ_POS], sixense_cur_tiltstate.tilt[SIXENSE_TILT_LZ_POS], K_LTRIGGER, &sixense_emulatedkeytimer[14]); //Tilt up to jump
 }
 
 void IN_SixenseMouse(usercmd_t *cmd)
