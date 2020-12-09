@@ -508,6 +508,18 @@ void V_CalcBlend (void)
 		v_blend[3] = 1;
 	if (v_blend[3] < 0)
 		v_blend[3] = 0;
+
+#if defined(USE_STEAMWRAP)
+	float sina = pow( sin( 0.5 * a * M_PI ), 0.5);
+	if ((cls.state == ca_disconnected) || (a==0))
+	{
+		SteamInput_SetLEDColor_f(SteamInput_GetControllerForGamepadIndex_f(0), 0, 0, 0, 1);
+	}
+	else
+	{
+		SteamInput_SetLEDColor_f(SteamInput_GetControllerForGamepadIndex_f(0), r*sina, g*sina, b*sina, 0);
+	}
+#endif
 }
 
 /*

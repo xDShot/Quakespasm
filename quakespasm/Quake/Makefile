@@ -7,6 +7,9 @@
 # Enable/Disable user directories support
 DO_USERDIRS=0
 
+### Enable/Disable STEAMWRAP
+USE_STEAMWRAP=1
+
 ### Enable/Disable SDL2
 USE_SDL2=1
 
@@ -98,6 +101,10 @@ X11BASE	?= $(X11BASE_GUESS)
 ifneq ($(X11BASE),)
 LDFLAGS+= -L$(X11BASE)/lib
 CFLAGS += -I$(X11BASE)/include
+endif
+
+ifeq ($(USE_STEAMWRAP),1)
+CFLAGS += -DUSE_STEAMWRAP
 endif
 
 ifeq ($(USE_SDL2),1)
@@ -297,6 +304,10 @@ OBJS := strlcat.o \
 	world.o \
 	zone.o \
 	$(SYSOBJ_SYS) $(SYSOBJ_MAIN) $(SYSOBJ_RES)
+	
+ifeq ($(USE_STEAMWRAP),1)
+OBJS += steam.o
+endif
 
 # ------------------------
 # Linux build rules

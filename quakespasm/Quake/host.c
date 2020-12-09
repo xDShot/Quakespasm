@@ -981,6 +981,10 @@ void Host_Frame (double time)
 	static int		timecount;
 	int		i, c, m;
 
+#if defined(USE_STEAMWRAP)
+	SteamRunCallbacks_f();
+#endif
+
 	if (!serverprofile.value)
 	{
 		_Host_Frame (time);
@@ -1157,6 +1161,9 @@ void Host_Shutdown(void)
 		VID_Shutdown();
 	}
 
+#if defined(USE_STEAMWRAP)
+	SteamShutdown_f();
+#endif
 	LOG_Close ();
 }
 

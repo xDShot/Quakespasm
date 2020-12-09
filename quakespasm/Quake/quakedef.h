@@ -355,6 +355,14 @@ void DemoList_Init (void);
 
 void DemoList_Rebuild (void);
 
+#if defined(USE_STEAMWRAP)
+void SteamInit_f (void);
+void SteamRunCallbacks_f();
+uint64_t SteamInput_GetControllerForGamepadIndex_f(int);
+void SteamInput_SetLEDColor_f(uint64_t, uint8_t, uint8_t, uint8_t, unsigned int);
+void SteamShutdown_f (void);
+#endif
+
 extern int		current_skill;	// skill level for currently loaded level (in case
 					//  the user changes the cvar while the level is
 					//  running, this reflects the level actually in use)

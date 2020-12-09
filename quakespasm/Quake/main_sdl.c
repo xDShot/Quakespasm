@@ -114,6 +114,13 @@ int main(int argc, char *argv[])
 
 	isDedicated = (COM_CheckParm("-dedicated") != 0);
 
+#if defined(USE_STEAMWRAP)
+	if ((COM_CheckParm("-steam") && !isDedicated))
+	{
+		SteamInit_f();
+	}
+#endif
+
 	Sys_InitSDL ();
 
 	Sys_Init();
