@@ -1,6 +1,8 @@
 #include "quakedef.h"
 #include <dlfcn.h>
 
+const char *steam_wrap_dll = STEAM_WRAP_DLLNAME;
+
 #define WRAP_POPULATEFUNCTION(handler, funcname) \
     wrap_##funcname = dlsym( handler, "c_"#funcname); \
     if (!wrap_##funcname) { \
@@ -19,7 +21,7 @@ void (*wrap_SteamInput_SetLEDColor)(uint64_t, uint8_t, uint8_t, uint8_t, unsigne
 
 void SteamInit_f()
 {
-	Steam_WrapHande = dlopen("./steam_wrapper.so", RTLD_LAZY);
+	Steam_WrapHande = dlopen(steam_wrap_dll, RTLD_LAZY);
 	if (!Steam_WrapHande) {
 		/* fail to load the library */
 		Sys_Printf("Failed to load Steam Wrap: %s\n", dlerror());

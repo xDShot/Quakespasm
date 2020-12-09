@@ -105,6 +105,7 @@ endif
 
 ifeq ($(USE_STEAMWRAP),1)
 CFLAGS += -DUSE_STEAMWRAP
+CFLAGS += -DSTEAM_WRAP_DLLNAME=\"libsteam_wrapper64.so\"
 endif
 
 ifeq ($(USE_SDL2),1)
