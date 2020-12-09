@@ -1,5 +1,14 @@
 #include "quakedef.h"
+#if !defined(WIN32)
 #include <dlfcn.h>
+#endif
+
+#if defined(WIN32)
+#define dlopen(handler, mode) LoadLibraryA(handler)
+#define dlsym(handler, funcname) (void*)GetProcAddress(handler, funcname)
+#define dlerror() "fail"
+#define dlclose(handler) FreeLibrary(handler)
+#endif
 
 const char *steam_wrap_dll = STEAM_WRAP_DLLNAME;
 

@@ -5,6 +5,9 @@
 # "make SDL_CONFIG=/path/to/sdl-config" to override the locally included SDL versions.
 # "make WINSOCK2=1" to use WinSock2 api instead of the old WinSock 1.1.
 
+### Enable/Disable STEAMWRAP
+USE_STEAMWRAP=1
+
 ### Enable/disable SDL2
 USE_SDL2=0
 
@@ -69,6 +72,11 @@ cmd_strip=$(STRIP) $(1)
 define do_strip
 	$(call cmd_strip,$(1));
 endef
+endif
+
+ifeq ($(USE_STEAMWRAP),1)
+CFLAGS += -DUSE_STEAMWRAP
+CFLAGS += -DSTEAM_WRAP_DLLNAME=\"steam_wrapper32.dll\"
 endif
 
 ifeq ($(USE_SDL2),1)
@@ -284,6 +292,10 @@ OBJS := strlcat.o \
 	world.o \
 	zone.o \
 	$(SYSOBJ_SYS) $(SYSOBJ_MAIN) $(SYSOBJ_RES)
+	
+ifeq ($(USE_STEAMWRAP),1)
+OBJS += steam.o
+endif
 
 # ------------------------
 # MinGW build rules
