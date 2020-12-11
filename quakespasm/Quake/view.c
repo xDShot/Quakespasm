@@ -456,6 +456,14 @@ void V_CalcPowerupCshift (void)
 		cl.cshifts[CSHIFT_POWERUP].percent = 0;
 }
 
+#if defined(USE_STEAMWRAP)
+const 
+void SetLEDColorMood(float *r, float *g, float *b)
+{
+
+}
+#endif
+
 /*
 =============
 V_CalcBlend
@@ -508,18 +516,6 @@ void V_CalcBlend (void)
 		v_blend[3] = 1;
 	if (v_blend[3] < 0)
 		v_blend[3] = 0;
-
-#if defined(USE_STEAMWRAP)
-	float sina = pow( sin( 0.5 * a * M_PI ), 0.5);
-	if ((cls.state == ca_disconnected) || (a==0))
-	{
-		SteamInput_SetLEDColor_f(SteamInput_GetControllerForGamepadIndex_f(0), 0, 0, 0, 1);
-	}
-	else
-	{
-		SteamInput_SetLEDColor_f(SteamInput_GetControllerForGamepadIndex_f(0), r*sina, g*sina, b*sina, 0);
-	}
-#endif
 }
 
 /*
@@ -563,6 +559,18 @@ void V_UpdateBlend (void)
 
 	if (blend_changed)
 		V_CalcBlend ();
+#if defined(USE_STEAMWRAP)
+	float sina = pow( sin( 0.5 * v_blend[3] * M_PI ), 0.5);
+	/*float ledr, ledg, ledb;*/
+	if (v_blend[3]==0)
+	{
+		SteamInput_SetLEDColor_f(SteamInput_GetControllerForGamepadIndex_f(0), 0, 0, 0, 1);
+	}
+	else
+	{
+		SteamInput_SetLEDColor_f(SteamInput_GetControllerForGamepadIndex_f(0), 255*v_blend[0]*sina, 255*v_blend[1]*sina, 255*v_blend[2]*sina, 0);
+	}
+#endif
 }
 
 /*
