@@ -198,7 +198,7 @@ void CL_Disconnect (void)
 	cl.worldmodel = NULL;
 	cl.sendprespawn = false;
 #if defined(USE_STEAMWRAP)
-	SteamInput_SetLEDColor_f(SteamInput_GetControllerForGamepadIndex_f(0), 0, 0, 0, 1);
+	SteamController_SetLEDColor_f(SteamController_GetControllerForGamepadIndex_f(0), 0, 0, 0, 1);
 #endif
 }
 

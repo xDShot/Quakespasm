@@ -474,6 +474,9 @@ void IN_Init (void)
 
 	IN_UpdateGrabs();
 	IN_StartupJoystick();
+#if defined(USE_STEAMWRAP)
+	SteamController_Init_f();
+#endif
 }
 
 void IN_Shutdown (void)

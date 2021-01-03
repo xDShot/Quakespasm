@@ -19,14 +19,15 @@ const char *steam_wrap_dll = STEAM_WRAP_DLLNAME;
     }
 
 int SteamInit = 0;
-int SteamInputInit = 0;
+int SteamControllerInit = 0;
 void *Steam_WrapHande;
 int (*wrap_SteamAPI_Init)();
 void (*wrap_SteamAPI_Shutdown)();
 void (*wrap_SteamAPI_RunCallbacks)();
-int (*wrap_SteamInput_Init)();
-uint64_t (*wrap_SteamInput_GetControllerForGamepadIndex)(int);
-void (*wrap_SteamInput_SetLEDColor)(uint64_t, uint8_t, uint8_t, uint8_t, unsigned int nFlags);
+int (*wrap_SteamController_Init)();
+uint64_t (*wrap_SteamController_GetControllerForGamepadIndex)(int);
+void (*wrap_SteamController_SetLEDColor)(uint64_t, uint8_t, uint8_t, uint8_t, unsigned int nFlags);
+int (*wrap_SteamController_GetInputTypeForHandle)(uint64_t);
 
 void SteamInit_f()
 {
@@ -54,23 +55,27 @@ void SteamInit_f()
 
         WRAP_POPULATEFUNCTION(Steam_WrapHande, SteamAPI_Shutdown);
         WRAP_POPULATEFUNCTION(Steam_WrapHande, SteamAPI_RunCallbacks);
-        WRAP_POPULATEFUNCTION(Steam_WrapHande, SteamInput_Init);
-        WRAP_POPULATEFUNCTION(Steam_WrapHande, SteamInput_GetControllerForGamepadIndex);
-        WRAP_POPULATEFUNCTION(Steam_WrapHande, SteamInput_SetLEDColor);
+        WRAP_POPULATEFUNCTION(Steam_WrapHande, SteamController_Init);
+        WRAP_POPULATEFUNCTION(Steam_WrapHande, SteamController_GetControllerForGamepadIndex);
+        WRAP_POPULATEFUNCTION(Steam_WrapHande, SteamController_SetLEDColor);
+        WRAP_POPULATEFUNCTION(Steam_WrapHande, SteamController_GetInputTypeForHandle);
+	}
+}
 
-        if (wrap_SteamInput_Init)
+void SteamController_Init_f()
+{
+        if (wrap_SteamController_Init)
         {
-            SteamInputInit = wrap_SteamInput_Init();
-            if (!SteamInputInit)
+            SteamControllerInit = wrap_SteamController_Init();
+            if (!SteamControllerInit)
             {
-                Sys_Printf("Error: wrap_SteamInput_Init returned false!\n");
+                Sys_Printf("Error: wrap_SteamController_Init returned false!\n");
             }
             else
             {
-                Sys_Printf("Successfully wrap_SteamInput_Init\n");
+                Sys_Printf("Successfully wrap_SteamController_Init\n");
             }
         }
-	}
 }
 
 void SteamRunCallbacks_f()
@@ -78,10 +83,10 @@ void SteamRunCallbacks_f()
     if (wrap_SteamAPI_RunCallbacks) { wrap_SteamAPI_RunCallbacks(); }
 }
 
-uint64_t SteamInput_GetControllerForGamepadIndex_f(int cont_index)
+uint64_t SteamController_GetControllerForGamepadIndex_f(int cont_index)
 {
-    if (wrap_SteamInput_GetControllerForGamepadIndex) {
-        return wrap_SteamInput_GetControllerForGamepadIndex(cont_index); 
+    if (wrap_SteamController_GetControllerForGamepadIndex) {
+        return wrap_SteamController_GetControllerForGamepadIndex(cont_index); 
     }
     else
     {
@@ -89,9 +94,24 @@ uint64_t SteamInput_GetControllerForGamepadIndex_f(int cont_index)
     }
 }
 
-void SteamInput_SetLEDColor_f(uint64_t inputHandle, uint8_t nColorR, uint8_t nColorG, uint8_t nColorB, unsigned int nFlags)
+int SteamController_GetInputTypeForHandle_f( uint64_t inputHandle )
 {
-    if (wrap_SteamInput_SetLEDColor) { wrap_SteamInput_SetLEDColor(inputHandle, nColorR, nColorG, nColorB, nFlags); }
+    if (wrap_SteamController_GetInputTypeForHandle)
+    { 
+        return wrap_SteamController_GetInputTypeForHandle(inputHandle);
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+void SteamController_SetLEDColor_f(uint64_t inputHandle, uint8_t nColorR, uint8_t nColorG, uint8_t nColorB, unsigned int nFlags)
+{
+    if (wrap_SteamController_SetLEDColor)
+    {
+        wrap_SteamController_SetLEDColor(inputHandle, nColorR, nColorG, nColorB, nFlags);
+    }
 }
 
 void SteamShutdown_f()

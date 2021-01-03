@@ -564,11 +564,11 @@ void V_UpdateBlend (void)
 	/*float ledr, ledg, ledb;*/
 	if (v_blend[3]==0)
 	{
-		SteamInput_SetLEDColor_f(SteamInput_GetControllerForGamepadIndex_f(0), 0, 0, 0, 1);
+		SteamController_SetLEDColor_f(SteamController_GetControllerForGamepadIndex_f(0), 0, 0, 0, 1);
 	}
 	else
 	{
-		SteamInput_SetLEDColor_f(SteamInput_GetControllerForGamepadIndex_f(0), 255*v_blend[0]*sina, 255*v_blend[1]*sina, 255*v_blend[2]*sina, 0);
+		SteamController_SetLEDColor_f(SteamController_GetControllerForGamepadIndex_f(0), 255*v_blend[0]*sina, 255*v_blend[1]*sina, 255*v_blend[2]*sina, 0);
 	}
 #endif
 }

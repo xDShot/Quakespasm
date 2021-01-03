@@ -357,9 +357,10 @@ void DemoList_Rebuild (void);
 
 #if defined(USE_STEAMWRAP)
 void SteamInit_f (void);
+void SteamController_Init_f();
 void SteamRunCallbacks_f();
-uint64_t SteamInput_GetControllerForGamepadIndex_f(int);
-void SteamInput_SetLEDColor_f(uint64_t, uint8_t, uint8_t, uint8_t, unsigned int);
+uint64_t SteamController_GetControllerForGamepadIndex_f(int);
+void SteamController_SetLEDColor_f(uint64_t, uint8_t, uint8_t, uint8_t, unsigned int);
 void SteamShutdown_f (void);
 #endif
 
